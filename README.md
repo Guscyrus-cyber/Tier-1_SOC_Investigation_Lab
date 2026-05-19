@@ -1,8 +1,8 @@
-# Tier-1 SOC Investigation Lab — Overview
+ Tier-1 SOC Investigation Lab — Overview
 
 This lab simulates a **real-world security incident investigation** using a single log dataset (tier1_lab_25events.log) analyzed in Splunk. The objective is to train a SOC analyst to detect, extract, and correlate suspicious activities across multiple domains of system behavior. Instead of focusing on only one type of log (like auth.log), this lab intentionally combines different types of events—authentication, process activity, network traffic, file changes, and suspicious behavior—into a single timeline. This approach mirrors real enterprise environments where attackers leave traces across multiple layers of the system rather than a single log source.
 
-# Purpose of This Lab
+ Purpose of This Lab
 
 The goal of this lab is to develop the ability to:
 
@@ -16,33 +16,33 @@ The goal of this lab is to develop the ability to:
 
 - Think like a **SOC analyst**, not just run queries
 
-# What Each Category Means in This Lab
+ What Each Category Means in This Lab
 
-## Authentication Events
+ Authentication Events
 
 These logs show user login activity, password attempts, and account status changes. They are used to detect unauthorized access attempts such as brute-force attacks, failed password changes, or suspicious logins. In this dataset, events like account_locked, login_success, and password_change_attempt help identify whether attackers are trying to gain or maintain access to the system.
 
-## Process Execution
+Process Execution
 
 These events track programs and commands executed on the system. Monitoring process activity helps detect abnormal behavior such as unexpected scripts, unauthorized services, or attacker tools. For example, processes like bash, python3, curl, and nc can indicate both normal operations and malicious activity depending on context, especially when combined with suspicious commands.
 
-## Malware Activity
+ Malware Activity
 
 This category focuses on indicators of malicious software, including payload downloads, suspicious binaries, and script execution. Events such as suspicious_binary_detected, creation of /tmp/malware.sh, and execution via bash or curl suggest that malware may have been introduced and executed on the system.
 
-## Network Connections
+ Network Connections
 
 These logs show inbound and outbound network activity, including connections to external IPs and scanning behavior. They are critical for identifying command-and-control communication, data exfiltration, or reconnaissance. In this lab, events like port_scan_detected and outbound connections to IPs such as 45.155.205.12 reveal potential attacker communication.
 
-## File Integrity Events
+ File Integrity Events
 
 These events track file creation, modification, and deletion attempts. Monitoring file integrity helps detect unauthorized changes to sensitive files, persistence mechanisms, or attempts to hide activity. For example, modification of .ssh/authorized_keys or system binaries like /usr/bin/ssh indicates possible privilege escalation or backdoor installation.
 
-## Privilege / Suspicious Behavior
+ Privilege / Suspicious Behavior
 
 This category highlights high-risk or abnormal actions that could indicate compromise. These include permission changes (chmod 777), reverse shell activity (nc -lvp 4444), and attempts to delete logs. These behaviors often represent the attacker’s effort to maintain access, escalate privileges, or cover their tracks.
 
-# What This Lab Simulates
+ What This Lab Simulates
 
 This is not random data — it simulates a **complete attack chain**:
 
@@ -98,40 +98,17 @@ Fields exist\
 Events are readable\
 ———————————————————————————————————————
 
-### Step — 2 Extract field\
+Step — 2 Extract field\
 \
 index=main source="/var/log/tier1_lab_25events.log"
+\| rex "user=(?\<user\>\S+)"
+\| rex "action=(?\<action\>\S+)"
+\| rex "src_ip=(?\<src_ip\>\[0-9\\\]+)"
 
-### \| rex "user=(?\<user\>\S+)"
-
-### \| rex "action=(?\<action\>\S+)"
-
-### \| rex "src_ip=(?\<src_ip\>\[0-9\\\]+)"
-
-### \| rex "dst_ip=(?\<dst_ip\>\[0-9\\\]+)"\
+ \| rex "dst_ip=(?\<dst_ip\>\[0-9\\\]+)"\
 \| rex "process=(?\<process\>\S+)\
 \| rex "file=\\(?\<file\>\[^\\\]+)\\"\
 \| table \_time user action src_ip dst_ip process file \_raw\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
 \
 This SPL query is used to transform raw, unstructured log data into structured, analyst-friendly fields so that meaningful security analysis can be performed efficiently. In this dataset, the original events are simple text strings that contain key information such as user names, actions, IP addresses, processes, and file paths, but Splunk does not automatically extract all of these fields because the log is not fully normalized. By using multiple rex commands, the query applies regular expressions to parse and extract important attributes like user, action, src_ip, dst_ip, process, and file directly from the raw event data. This allows the analyst to convert messy log lines into a clean tabular format using the table command, making it much easier to read, filter, and correlate activity across events.
 
@@ -345,42 +322,10 @@ The output shows 25 events are indexed.\
 Panel 2 — Authentication Activity\
 \
 index=main source="/var/log/tier1_lab_25events.log"
-
 (action="login_failed" OR action="login_success" OR action="account_locked" OR action="password_change_attempt")
-
-\| fillnull value="N/A" src_ip
-
-\| stats count by user src_ip action
-
-\| sort – count\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
+| fillnull value="N/A" src_ip
+| stats count by user src_ip action
+|sort – count\
 \
 \
 \
@@ -393,24 +338,7 @@ index=main source="/var/log/tier1_lab_25events.log"\
 \| stats count by user action\
 \| sort – count\
 \
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-\
-———————————————————————————————————————————\
+\———————————————————————————————————————————\
 Panel 3 — Process Execution\
 \
 index=main source="/var/log/tier1_lab_25events.log"
@@ -524,7 +452,7 @@ bash /tmp/malware.sh → malware execution\
 
 \
 The panel uses a table visualization to display detailed command execution and privilege-related activity, allowing analysts to inspect exact commands and raw logs. This is essential for identifying suspicious behavior such as reverse shell execution, permission abuse, and privilege escalation attempts, which cannot be effectively analyzed using aggregated chart visualizations.\
-———————————————————\
+
 \
 Panel 8 — Full Attack Timeline\
 \
@@ -546,7 +474,7 @@ File changes\
 These are step by step attacks by users:\
 \
 \
-=============================================================================================================================================================================================================================================================================================================================================================================================
+
 
 1.  Total Events
 
@@ -577,8 +505,7 @@ network / unknown source: outbound connection to 45.155.205.12, failed DNS looku
 This panel reconstructs the complete sequence of events by displaying all log entries in chronological order. It enables analysts to trace the full attack lifecycle, from initial access and failed login attempts to privilege escalation, malware execution, network communication, and system modification. By correlating multiple types of activity in a single timeline, this panel provides a comprehensive view of the incident and supports effective investigation and response.\
 ———————————————————\
 \
-**Panel 9- MITRE ATT&CK Mapping** 
-============================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+Panel 9- MITRE ATT&CK Mapping
 
 What is MITRE ATT&CK: MITRE ATT&CK® is a globally accessible, free knowledge base of cyber adversary behaviors, tactics, and techniques based on real-world observations. It acts as a standardized framework (Adversarial Tactics, Techniques, and Common Knowledge) used by security teams to model threats, enhance detection, and test defenses against specific attacker methods, such as phishing or ransomware. 
 
@@ -649,7 +576,7 @@ Top of Form
 
 Bottom of Form
 
-### \
+
 \
 \
 \
