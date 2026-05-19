@@ -1,20 +1,18 @@
  Tier-1 SOC Investigation Lab — Overview
 
-This lab simulates a **real-world security incident investigation** using a single log dataset (tier1_lab_25events.log) analyzed in Splunk. The objective is to train a SOC analyst to detect, extract, and correlate suspicious activities across multiple domains of system behavior. Instead of focusing on only one type of log (like auth.log), this lab intentionally combines different types of events—authentication, process activity, network traffic, file changes, and suspicious behavior—into a single timeline. This approach mirrors real enterprise environments where attackers leave traces across multiple layers of the system rather than a single log source.
+This lab simulates a real-world security incident investigation using a single log dataset (tier1_lab_25events.log) analyzed in Splunk. The objective is to train a SOC analyst to detect, extract, and correlate suspicious activities across multiple domains of system behavior. Instead of focusing on only one type of log (like auth.log), this lab intentionally combines different types of events—authentication, process activity, network traffic, file changes, and suspicious behavior—into a single timeline. This approach mirrors real enterprise environments where attackers leave traces across multiple layers of the system rather than a single log source.
 
  Purpose of This Lab
 
 The goal of this lab is to develop the ability to:
 
-- Work with **unstructured log data**
+- Work with unstructured log data
 
 - Extract meaningful fields using SPL (rex)
 
-- Identify **malicious patterns**
+- Identify malicious patterns
 
-- Correlate events into a **complete attack story**
-
-- Think like a **SOC analyst**, not just run queries
+- Correlate events into a complete attack story
 
  What Each Category Means in This Lab
 
@@ -44,7 +42,7 @@ This category highlights high-risk or abnormal actions that could indicate compr
 
  What This Lab Simulates
 
-This is not random data — it simulates a **complete attack chain**:
+This is not random data — it simulates a complete attack chain:
 
 1.  Initial access (login activity)
 
@@ -59,10 +57,6 @@ This is not random data — it simulates a **complete attack chain**:
 6.  Defense evasion (log deletion attempt)
 
 Dataset for the file “Tier1_Lab_25events.log”
-
-Top of Form
-
-Bottom of Form
 
 2026-04-18T13:25:33Z host=kali user=root action=account_locked reason="multiple failed logins"\
 2026-04-18T13:24:55Z host=kali network action=failed_dns_lookup domain="weird-domain.xyz"\
@@ -88,7 +82,6 @@ Bottom of Form
 Step — 1 Confirm data\
 \
 index=main source="/var/log/tier1_lab_25events.log"
-
 \| table \_time host source sourcetype \_raw
 
 This SPL query proves:
@@ -155,8 +148,7 @@ This query is used to investigate malware-related activity by filtering the log 
 ————————————————————————————————————---\
 \
 Step — 6 Network Connections\
-\
-\
+
 index=main source="/var/log/tier1_lab_25events.log" network\
 \| rex "action=(?\<action\>\S+)"\
 \| rex "src_ip=(?\<src_ip\>\[0-9\\\]+)"\
@@ -171,10 +163,6 @@ index=main source="/var/log/tier1_lab_25events.log"\
 network\
 \| rex "dst_ip=(?\<dst_ip\>\[0-9\\\]+)"\
 \| stats count by src_ip dst_ip action\
-\
-\
-\
-\
 \
 This shows network-related activity in the dataset by grouping events based on the type of action and the IP addresses involved, allowing the analyst to quickly understand what kind of network behavior occurred during the timeline. Each row represents a distinct network event type: the failed_dns_lookup with N/A values indicates that the system attempted to resolve a domain name (in this case likely the suspicious domain from the raw logs) but failed, which can be an early sign of malware trying to contact a command-and-control domain that is unreachable or blocked. The two outbound_connection events show that the system initiated connections to external IP addresses, including 8.8.8.8 (a common public DNS server, typically benign) and 45.155.205.12, which is more suspicious because it is an unknown external IP and could represent attacker infrastructure or data exfiltration. The port_scan_detected event with source IP 172.16.0.88 indicates reconnaissance activity, where a system is probing ports to discover open services, which is often a precursor to an attack. The N/A values appear because not all network events include both source and destination IP fields—for example, a port scan may only log the scanning source, while an outbound connection logs only the destination—so fillnull ensures those missing fields are still visible. Overall, this output reveals a mix of reconnaissance, external communication, and suspicious DNS behavior, helping the analyst identify potential attacker activity and prioritize further investigation into unknown IP addresses and abnormal network patterns.\
 ————————————————————————————————————---\
@@ -212,8 +200,6 @@ index=main source="/var/log/tier1_lab_25events.log"\
 \| sort \_time\
 \| table \_time user action process file src_ip dst_ip \_raw\
 \
-\
-\
 This query reconstructs the **full attack timeline** by sorting all events in chronological order and displaying key fields such as user, action, process, file, and IP addresses, allowing the analyst to understand the sequence of events as they actually occurred on the system. The purpose of this query is to move beyond isolated detections and build a **complete narrative of the attack**, which is one of the most important skills in a SOC investigation. From the output, we can observe a progression of activity that suggests a multi-stage compromise: the timeline begins with normal and failed authentication attempts, including successful logins by *alice* and later *charlie*, alongside failed attempts from external IPs, indicating possible reconnaissance or credential probing. Shortly after, there is a privilege_escalation_attempt involving the root account, which signals an attempt to gain higher-level access. This is followed by suspicious file activity, including reading /etc/passwd (user enumeration) and an attempt to delete /var/log/auth.log, which strongly suggests an effort to remove evidence. The activity then escalates into execution and persistence behaviors, where processes like python3, bash, and curl are used, permissions are loosened with chmod 777, and outbound network connections are established, including one to an unknown external IP (45.155.205.12), indicating possible command-and-control communication. The attack becomes more explicit when *charlie* logs in successfully and initiates a netcat listener (nc -lvp 4444), creates a malicious script (/tmp/malware.sh), and executes it, clearly demonstrating backdoor setup and malware execution. Finally, critical system modifications occur, such as altering /usr/bin/ssh, restarting the SSH service, and performing additional suspicious actions like password change attempts and port scanning, which may indicate persistence, lateral movement, or continued reconnaissance. Overall, this timeline reveals a coordinated attack lifecycle that includes initial access, privilege escalation, defense evasion, execution, persistence, and network communication, providing a complete picture of how the system may have been compromised.\
 
 \
@@ -236,9 +222,6 @@ index=main source="/var/log/tier1_lab_25events.log"\
 This query is used to identify **failed authentication attempts that may indicate brute-force or unauthorized access activity** by filtering events related to login_failed and account_locked, then grouping them by user, source IP address, and action. The output reveals which users experienced failed login attempts and from which IP addresses those attempts originated, providing immediate visibility into potentially suspicious behavior. In this case, the results show that both *bob* and *charlie* had failed login attempts coming from different external IPs (192.168.1.44 and 185.22.14.9), which could indicate credential guessing or probing activity against multiple accounts. Even though the count is low in this dataset, in a real SOC environment repeated occurrences or patterns across users and IPs would strongly suggest a brute-force attack or malicious access attempt. Overall, this output helps analysts quickly detect and investigate abnormal authentication behavior before it escalates into a successful compromise.\
 \
 Save as Alert\
-\
-\
-\
 
 It detects Failed logins, Account lockout which indicates brute-force attack
 
@@ -277,7 +260,7 @@ outbound_connection → 45.155.205.12\
 Possible attacker communication\
 Reconnaissance activity\
 \
-Save as Alert\
+Save as Alert
 
 ———————————————————————————————————————————\
 Suspicious Command / Privilege Behavior\
@@ -287,7 +270,7 @@ index=main source="/var/log/tier1_lab_25events.log"
 ("chmod 777" OR "nc -lvp" OR "sudo su" OR "privilege_escalation" OR "curl" OR "malware")
 
 \| table \_time user action process \_raw\
-\
+
 
 Using keyword-based detection in Splunk\
 "nc -lvp 4444"\
@@ -315,7 +298,6 @@ Panel 1 — Total Events\
 index=main source="/var/log/tier1_lab_25events.log"
 
 \| stats count as total_events\
-\
 \
 The output shows 25 events are indexed.\
 ————————————————————————————————————---\
@@ -349,14 +331,6 @@ index=main source="/var/log/tier1_lab_25events.log"
 \| stats count by process\
 \| sort – count\
 \
-\
-\
-\
-bash → normal, but used for malicious scripts\
-python3 → scripting (can be abused)\
-curl → **payload download** ⚠️\
-nc → **reverse shell / backdoor** ⚠️\
-systemd → service restart\
 This helps identify **execution-based attack behavior\**
 This panel analyzes process execution activity by extracting process names from raw log data and counting how frequently each process is executed. It provides visibility into both normal and potentially suspicious processes running on the system. While processes such as bash and python3 may represent legitimate operations, they can also be used by attackers to execute scripts. More notably, the presence of curl indicates possible payload download activity, and nc (netcat) is a strong indicator of reverse shell or backdoor behavior. By summarizing process activity, this panel helps analysts detect abnormal execution patterns and identify processes commonly associated with malicious activity.\
 ———————————————————————————————————————\
@@ -365,8 +339,6 @@ Panel 4 — Malware Activity\
 index=main source="/var/log/tier1_lab_25events.log"\
 ("malware" OR "suspicious_binary" OR "payload")\
 \| table \_time user action process file \_raw\
-\
-\
 \
 suspicious_binary_detected\
 curl downloading payload\
@@ -406,27 +378,18 @@ External communication
 
 ossible attacker activity\
 \
-\
-\
 This panel analyzes network-related events by extracting source and destination IP addresses along with network actions such as outbound connections, DNS failures, and port scanning. It provides visibility into communication patterns and helps identify suspicious behavior, including connections to unknown external IP addresses and internal reconnaissance activity.\
 ————————————————————————————————————————---\
 Panel 6 — File Integrity Events\
 \
 index=main source="/var/log/tier1_lab_25events.log"
-
 \| rex "file=\\(?\<file\>\[^\\\]+)\\"
-
 \| rex "action=(?\<action\>\S+)"
-
 \| rex "user=(?\<user\>\S+)"
-
 \| search file=\*
-
 \| stats count by file action user
-
 \| sort - count
 
-\
 /etc/passwd read → normal (user enumeration)\
 .ssh/authorized_keys modified → persistence\
 /tmp/malware.sh created → malware staging\
@@ -448,9 +411,7 @@ chmod 777 → dangerous permission change\
 curl → payload download\
 nc -lvp 4444 → possible reverse shell or backdoor listener\
 bash /tmp/malware.sh → malware execution\
-\
 
-\
 The panel uses a table visualization to display detailed command execution and privilege-related activity, allowing analysts to inspect exact commands and raw logs. This is essential for identifying suspicious behavior such as reverse shell execution, permission abuse, and privilege escalation attempts, which cannot be effectively analyzed using aggregated chart visualizations.\
 
 \
@@ -472,9 +433,6 @@ Network connections\
 File changes\
 \
 These are step by step attacks by users:\
-\
-\
-
 
 1.  Total Events
 
@@ -540,8 +498,6 @@ like(\_raw,"%/usr/bin/ssh%"), "T1554 System Binary Modification"\
 This query maps raw log events to MITRE ATT&CK techniques by using conditional logic to match known attack patterns within log data. It translates detected activities such as failed logins, command execution, malware download, and network scanning into standardized MITRE techniques, providing a structured view of attacker behavior and improving understanding of the attack lifecycle.
 
 
-\
-===================================================================================================================================================================
 
 | **Splunk Detection** | **Interpretation**  | **MITRE** |
 |----------------------|---------------------|-----------|
@@ -567,20 +523,7 @@ This query maps raw log events to MITRE ATT&CK techniques by using conditional l
 | System Binary Tampering | T1554         | Persistence          |
 
 The observed activities were mapped to the MITRE ATT&CK framework to classify attacker behavior across different stages of the attack lifecycle. This mapping includes techniques such as brute-force authentication attempts, privilege escalation, command execution, malware delivery, persistence mechanisms, and command-and-control communication. By aligning detected events with MITRE ATT&CK tactics and techniques, the analysis provides a structured understanding of the attack and demonstrates how multiple stages of compromise are connected within a real-world security incident.\
-\
-\
 
-Bottom of Form
-
-Top of Form
-
-Bottom of Form
-
-
-\
-\
-\
-\
 \
 \
 \
